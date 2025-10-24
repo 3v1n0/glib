@@ -53,6 +53,8 @@ variables:
           $CI_PROJECT_NAMESPACE == "GNOME" &&
           $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
     - if: $CI_COMMIT_BRANCH
       when: on_success
 
@@ -61,6 +63,8 @@ variables:
 .only-default-and-merges:
   rules:
     - if: $CI_COMMIT_TAG
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
       when: never
     - if: $CI_COMMIT_BRANCH
       when: on_success
@@ -72,6 +76,8 @@ variables:
 .only-origin:
   rules:
     - if: $CI_COMMIT_TAG
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
       when: never
     - if: $CI_PROJECT_PATH == "GNOME/glib" && $CI_COMMIT_BRANCH
       when: on_success
@@ -94,6 +100,8 @@ variables:
 .only-schedules-or-manual:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
       when: never
     # As per rule before, the following rules will only apply to non MR events
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -123,6 +131,8 @@ variables:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "trigger"
       when: never
     - if: $CI_PROJECT_NAMESPACE == "GNOME"
       when: always
