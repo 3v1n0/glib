@@ -20,7 +20,7 @@ def has_self_mr_note(mr, current_user_id, contents):
 if __name__ == "__main__":
     server_uri = os.environ["CI_SERVER_URL"]
     project_path = os.environ["CI_PROJECT_PATH"]
-    token = os.environ["GIR_CHECK_TOKEN"]
+    token_file = os.environ["GIR_CHECK_TOKEN_FILE"]
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--mr", required=True)
@@ -30,6 +30,9 @@ if __name__ == "__main__":
     parser.add_argument("--last-target-job-id-output")
     parser.add_argument("--skip-if-mr-contains-our-comment-text")
     args = parser.parse_args()
+
+    with open(token_file, mode="rt", encoding="utf-8") as tf:
+        token = tf.read().strip()
 
     gl = gitlab.Gitlab(server_uri, private_token=token)
     project = gl.projects.get(project_path)
