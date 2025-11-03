@@ -1216,6 +1216,13 @@ do_posix_spawn (const gchar * const *argv,
   if (r == 0 && child_pid != NULL)
     *child_pid = pid;
 
+  /* CLEANUP: The following section ensures all resources are properly freed
+   * regardless of success or failure. This cleanup path is reached on both
+   * successful spawn and on any error during setup (via goto statements).
+   * All FDs in parent_close_fds and duped_source_fds are closed, allocated
+   * memory is freed, spawn attributes are destroyed, and the child_close
+   * list is freed.
+   */
 out_close_fds:
   for (i = 0; i < num_parent_close_fds; i++)
     g_clear_fd (&parent_close_fds[i], NULL);
@@ -1767,8 +1774,11 @@ success:
 
  cleanup_and_fail:
 
-  /* There was an error from the Child, reap the child to avoid it being
-     a zombie.
+  /* CLEANUP: This section handles resource cleanup when fork_exec fails.
+   * The child process is reaped if it was started, all pipe FDs are closed,
+   * and all heap-allocated buffers (search_path_buffer_heap, argv_buffer_heap,
+   * source_fds_copy) are freed. This ensures no resource leaks occur even on
+   * mid-sequence failures during spawn setup.
    */
 
   if (pid > 0)
