@@ -751,6 +751,10 @@ g_dbus_connection_dispose (GObject *object)
   CONNECTION_LOCK (connection);
   if (connection->worker != NULL)
     {
+      /* Stop the worker thread. This prevents new callbacks from being queued
+       * but does not wait for pending callbacks to complete. The FLAG_FINALIZING
+       * flag set in finalize() ensures that any remaining worker callbacks will
+       * skip operations that would access freed memory. */
       _g_dbus_worker_stop (connection->worker);
       connection->worker = NULL;
       if (alive_connections != NULL)
@@ -773,6 +777,11 @@ g_dbus_connection_finalize (GObject *object)
 {
   GDBusConnection *connection = G_DBUS_CONNECTION (object);
 
+  /* Set the finalizing flag atomically. This ensures that any worker thread
+   * callbacks that may still be queued will see this flag and skip operations
+   * that would access resources being freed here. The worker thread was stopped
+   * in dispose(), but callbacks may still be pending in the main context.
+   */
   g_atomic_int_or (&connection->atomic_flags, FLAG_FINALIZING);
 
   purge_all_signal_subscriptions (connection);
