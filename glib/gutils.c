@@ -952,8 +952,11 @@ void
 _g_unset_cached_tmp_dir (void)
 {
   G_LOCK (g_utils_global);
-  /* We have to leak the old value, as user code could be retaining pointers
-   * to it. */
+  /* INTENTIONAL LEAK: The old tmp_dir value is deliberately leaked because
+   * user code may retain pointers to it. This ensures backward pointer safety
+   * when the cache is invalidated. This function is typically called rarely
+   * (e.g., during testing), so memory growth is minimal.
+   */
   g_ignore_leak (g_tmp_dir);
   g_tmp_dir = NULL;
   G_UNLOCK (g_utils_global);
@@ -1775,8 +1778,11 @@ set_str_if_different (gchar       **global_str,
     {
       g_debug ("g_set_user_dirs: Setting %s to %s", type, new_value);
 
-      /* We have to leak the old value, as user code could be retaining pointers
-       * to it. */
+      /* INTENTIONAL LEAK: The old value is deliberately leaked to ensure
+       * backward pointer safety, as user code may retain pointers to it.
+       * This function is designed for one-time or rare updates to global
+       * directory paths. Continuous churn could lead to memory growth.
+       */
       g_ignore_leak (*global_str);
       *global_str = g_strdup (new_value);
     }
@@ -1794,8 +1800,11 @@ set_strv_if_different (gchar                ***global_strv,
       g_debug ("g_set_user_dirs: Setting %s to %s", type, new_value_str);
       g_free (new_value_str);
 
-      /* We have to leak the old value, as user code could be retaining pointers
-       * to it. */
+      /* INTENTIONAL LEAK: The old string array is deliberately leaked to ensure
+       * backward pointer safety, as user code may retain pointers to it.
+       * This function is designed for one-time or rare updates to global
+       * directory paths. Continuous churn could lead to memory growth.
+       */
       g_ignore_strv_leak (*global_strv);
       *global_strv = g_strdupv ((gchar **) new_value);
     }
@@ -2340,6 +2349,10 @@ g_reload_user_special_dirs_cache (void)
           if (g_user_special_dirs[i] == NULL ||
               g_strcmp0 (old_val, g_user_special_dirs[i]) != 0)
             {
+              /* INTENTIONAL LEAK: The old directory path is deliberately leaked
+               * to ensure backward pointer safety, as user code may retain pointers
+               * to it. This function is designed for rare directory updates.
+               */
               g_ignore_leak (old_val);
             }
           else

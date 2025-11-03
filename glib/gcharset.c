@@ -811,6 +811,10 @@ g_get_language_names_with_category (const gchar *category_name)
       cache = g_hash_table_new_full (g_str_hash, g_str_equal,
                                      g_free, language_names_cache_free);
       g_private_set (&cache_private, cache);
+      /* INTENTIONAL LEAK: The language names cache is created once per thread
+       * and kept for the lifetime of that thread. This enables efficient lookups
+       * of locale-specific language names without repeated allocations.
+       */
       g_ignore_leak (cache);
     }
 
@@ -840,6 +844,10 @@ g_get_language_names_with_category (const gchar *category_name)
       name_cache->languages = g_strdup (languages);
       name_cache->language_names = (gchar **) g_ptr_array_free (array, FALSE);
       g_hash_table_insert (cache, g_strdup (category_name), name_cache);
+      /* INTENTIONAL LEAK: The language names cache entry is kept for the lifetime
+       * of the thread to allow thread-safe, lockless access. The cache is bounded
+       * by the number of locale categories used within a thread.
+       */
       g_ignore_leak (name_cache);
     }
 
