@@ -1765,6 +1765,16 @@ g_get_os_info (const gchar *key_name)
  * different value. If its current value matches @new_value, do nothing. If
  * replaced, we have to leak the old value as client code could still have
  * pointers to it. */
+/* Set @global_str to a copy of @new_value if it's currently unset or has a
+ * different value. If its current value matches @new_value, do nothing. If
+ * replaced, we have to leak the old value as client code could still have
+ * pointers to it.
+ * 
+ * Uses atomic operations to ensure proper memory ordering and visibility
+ * across threads. While g_set_user_dirs() holds g_utils_global lock when
+ * calling this function, using atomic operations ensures the writes are
+ * properly visible to other threads and provides future-proofing.
+ */
 static void
 set_str_if_different (gchar       **global_str,
                       const gchar  *type,
@@ -1780,9 +1790,9 @@ set_str_if_different (gchar       **global_str,
 
   new_copy = g_strdup (new_value);
 
-  /* Atomically swap the new value in. If another thread changed the value
-   * between our read and this swap, the swap will fail and we'll free our
-   * copy and try again. */
+  /* Atomically swap the new value in. Under normal usage with the lock held,
+   * this CAS will always succeed. However, using atomic operations ensures
+   * proper memory ordering and makes the code robust to future changes. */
   if (g_atomic_pointer_compare_and_exchange (global_str, old_value, new_copy))
     {
       g_debug ("g_set_user_dirs: Setting %s to %s", type, new_value);
@@ -1792,7 +1802,8 @@ set_str_if_different (gchar       **global_str,
     }
   else
     {
-      /* Lost race, free our copy */
+      /* Lost race - this should not happen under current usage with lock held,
+       * but handle it defensively. */
       g_free (new_copy);
     }
 }
