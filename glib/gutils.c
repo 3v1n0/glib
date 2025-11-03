@@ -1770,15 +1770,30 @@ set_str_if_different (gchar       **global_str,
                       const gchar  *type,
                       const gchar  *new_value)
 {
-  if (*global_str == NULL ||
-      !g_str_equal (new_value, *global_str))
+  gchar *old_value;
+  gchar *new_copy;
+
+  old_value = g_atomic_pointer_get (global_str);
+  
+  if (old_value != NULL && g_str_equal (new_value, old_value))
+    return;  /* Value is already set to the desired value */
+
+  new_copy = g_strdup (new_value);
+
+  /* Atomically swap the new value in. If another thread changed the value
+   * between our read and this swap, the swap will fail and we'll free our
+   * copy and try again. */
+  if (g_atomic_pointer_compare_and_exchange (global_str, old_value, new_copy))
     {
       g_debug ("g_set_user_dirs: Setting %s to %s", type, new_value);
-
       /* We have to leak the old value, as user code could be retaining pointers
        * to it. */
-      g_ignore_leak (*global_str);
-      *global_str = g_strdup (new_value);
+      g_ignore_leak (old_value);
+    }
+  else
+    {
+      /* Lost race, free our copy */
+      g_free (new_copy);
     }
 }
 

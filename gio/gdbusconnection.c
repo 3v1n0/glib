@@ -460,7 +460,8 @@ signal_data_free (SignalData *signal_data)
 enum {
     FLAG_INITIALIZED = 1 << 0,
     FLAG_EXIT_ON_CLOSE = 1 << 1,
-    FLAG_CLOSED = 1 << 2
+    FLAG_CLOSED = 1 << 2,
+    FLAG_FINALIZING = 1 << 3
 };
 
 struct _GDBusConnection
@@ -588,8 +589,9 @@ struct _GDBusConnection
    */
   GCredentials *credentials;
 
-  /* set to TRUE when finalizing */
-  gboolean finalizing;
+  /* NOTE: The 'finalizing' state is now tracked in atomic_flags as FLAG_FINALIZING,
+   * rather than in a separate boolean field, to ensure thread-safe access.
+   */
 };
 
 typedef struct ExportedObject ExportedObject;
@@ -771,7 +773,7 @@ g_dbus_connection_finalize (GObject *object)
 {
   GDBusConnection *connection = G_DBUS_CONNECTION (object);
 
-  connection->finalizing = TRUE;
+  g_atomic_int_or (&connection->atomic_flags, FLAG_FINALIZING);
 
   purge_all_signal_subscriptions (connection);
 
@@ -2338,7 +2340,7 @@ g_dbus_connection_send_message_with_reply_sync (GDBusConnection        *connecti
 /*
  * Called in any thread.
  * Must hold the connection lock when calling this, unless
- * connection->finalizing is TRUE.
+ * FLAG_FINALIZING is set in connection->atomic_flags.
  */
 static void
 name_watcher_unref_watched_name (GDBusConnection *connection,
@@ -4002,7 +4004,7 @@ g_dbus_connection_signal_subscribe (GDBusConnection     *connection,
 /*
  * Called in any thread.
  * Must hold the connection lock when calling this, unless
- * connection->finalizing is TRUE.
+ * FLAG_FINALIZING is set in connection->atomic_flags.
  * May free signal_data, so do not dereference it after this.
  */
 static void
@@ -4045,7 +4047,7 @@ remove_signal_data_if_unused (GDBusConnection *connection,
   if ((connection->flags & G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION) &&
       !is_signal_data_for_name_lost_or_acquired (signal_data) &&
       !g_dbus_connection_is_closed (connection) &&
-      !connection->finalizing)
+      !(g_atomic_int_get (&connection->atomic_flags) & FLAG_FINALIZING))
     {
       /* The check for g_dbus_connection_is_closed() means that
        * sending the RemoveMatch message can't fail with
@@ -4069,7 +4071,7 @@ remove_signal_data_if_unused (GDBusConnection *connection,
 }
 
 /* called in any thread */
-/* must hold lock when calling this (except if connection->finalizing is TRUE)
+/* must hold lock when calling this (except if FLAG_FINALIZING is set in atomic_flags)
  * returns the number of removed subscribers */
 static guint
 unsubscribe_id_internal (GDBusConnection *connection,
