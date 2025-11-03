@@ -804,6 +804,11 @@ g_variant_type_info_get (const GVariantType *type)
         {
           g_variant_type_info_table = g_hash_table_new ((GHashFunc)_g_variant_type_hash,
                                                         (GEqualFunc)_g_variant_type_equal);
+          /* INTENTIONAL LEAK: Type info table is created once per process and
+           * kept for the lifetime of the process to enable efficient type lookups.
+           * Individual entries are reference-counted and may be garbage collected
+           * via the g_variant_type_info_gc queue when no longer referenced.
+           */
           g_ignore_leak (g_variant_type_info_table);
         }
       info = g_hash_table_lookup (g_variant_type_info_table, type_string);
@@ -901,6 +906,12 @@ g_variant_type_info_unref (GVariantTypeInfo *info)
           if (g_variant_type_info_gc == NULL)
             {
               g_variant_type_info_gc = g_ptr_array_new ();
+              /* INTENTIONAL LEAK: The garbage collection (GC) queue for type info
+               * entries is kept for the process lifetime. It reuses unreferenced
+               * type info entries when the queue grows above a threshold. This enables
+               * memory reuse while avoiding the need to free and reallocate frequently
+               * used types.
+               */
               g_ignore_leak (g_variant_type_info_gc);
             }
 

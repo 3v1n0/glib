@@ -292,9 +292,12 @@ quark_new (gchar *string)
       if (quark_seq_id != 0)
         memcpy (quarks_new, quarks, sizeof (char *) * quark_seq_id);
       memset (quarks_new + quark_seq_id, 0, sizeof (char *) * QUARK_BLOCK_SIZE);
-      /* This leaks the old quarks array. Its unfortunate, but it allows
-       * us to do lockless lookup of the arrays, and there shouldn't be that
-       * many quarks in an app
+      /* INTENTIONAL LEAK: The old quarks array is deliberately leaked here to
+       * enable lockless, thread-safe lookups. Since other threads may still
+       * hold pointers into the old array, it must remain valid for the process
+       * lifetime. Quarks are typically used for a bounded set of identifiers,
+       * so memory growth is limited. Unbounded quark interning by applications
+       * can lead to memory growth, but this is expected behavior.
        */
       g_ignore_leak (g_atomic_pointer_get (&quarks));
       g_atomic_pointer_set (&quarks, quarks_new);
