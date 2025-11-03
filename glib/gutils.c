@@ -1782,6 +1782,7 @@ set_str_if_different (gchar       **global_str,
 {
   gchar *old_value;
   gchar *new_copy;
+  gchar *prev_value;
 
   old_value = g_atomic_pointer_get (global_str);
   
@@ -1792,13 +1793,14 @@ set_str_if_different (gchar       **global_str,
 
   /* Atomically swap the new value in. Under normal usage with the lock held,
    * this CAS will always succeed. However, using atomic operations ensures
-   * proper memory ordering and makes the code robust to future changes. */
-  if (g_atomic_pointer_compare_and_exchange (global_str, old_value, new_copy))
+   * proper memory ordering and makes the code robust to future changes.
+   * Using _full variant to get the actual previous value. */
+  if (g_atomic_pointer_compare_and_exchange_full (global_str, old_value, new_copy, &prev_value))
     {
       g_debug ("g_set_user_dirs: Setting %s to %s", type, new_value);
       /* We have to leak the old value, as user code could be retaining pointers
        * to it. */
-      g_ignore_leak (old_value);
+      g_ignore_leak (prev_value);
     }
   else
     {
