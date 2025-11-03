@@ -141,6 +141,7 @@ glib_tests = {
       'spawn-test-helper-subdir',
     ],
   },
+  'spawn-posix-error' : {},
   'spawn-singlethread' : {
     'dependencies' : [winsock2],
     'extra_programs' : ['test-spawn-echo'],
