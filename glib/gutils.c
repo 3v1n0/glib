@@ -1765,20 +1765,48 @@ g_get_os_info (const gchar *key_name)
  * different value. If its current value matches @new_value, do nothing. If
  * replaced, we have to leak the old value as client code could still have
  * pointers to it. */
+/* Set @global_str to a copy of @new_value if it's currently unset or has a
+ * different value. If its current value matches @new_value, do nothing. If
+ * replaced, we have to leak the old value as client code could still have
+ * pointers to it.
+ * 
+ * Uses atomic operations to ensure proper memory ordering and visibility
+ * across threads. While g_set_user_dirs() holds g_utils_global lock when
+ * calling this function, using atomic operations ensures the writes are
+ * properly visible to other threads and provides future-proofing.
+ */
 static void
 set_str_if_different (gchar       **global_str,
                       const gchar  *type,
                       const gchar  *new_value)
 {
-  if (*global_str == NULL ||
-      !g_str_equal (new_value, *global_str))
+  gchar *old_value;
+  gchar *new_copy;
+  gchar *prev_value;
+
+  old_value = g_atomic_pointer_get (global_str);
+  
+  if (old_value != NULL && g_str_equal (new_value, old_value))
+    return;  /* Value is already set to the desired value */
+
+  new_copy = g_strdup (new_value);
+
+  /* Atomically swap the new value in. Under normal usage with the lock held,
+   * this CAS will always succeed. However, using atomic operations ensures
+   * proper memory ordering and makes the code robust to future changes.
+   * Using _full variant to get the actual previous value. */
+  if (g_atomic_pointer_compare_and_exchange_full (global_str, old_value, new_copy, &prev_value))
     {
       g_debug ("g_set_user_dirs: Setting %s to %s", type, new_value);
-
       /* We have to leak the old value, as user code could be retaining pointers
        * to it. */
-      g_ignore_leak (*global_str);
-      *global_str = g_strdup (new_value);
+      g_ignore_leak (prev_value);
+    }
+  else
+    {
+      /* Lost race - this should not happen under current usage with lock held,
+       * but handle it defensively. */
+      g_free (new_copy);
     }
 }
 

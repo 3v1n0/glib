@@ -30,3 +30,4 @@ tags
 
 # Generated Meson cross-compilation files for CI
 vs2019-arm64.txt
+subprojects/.wraplock

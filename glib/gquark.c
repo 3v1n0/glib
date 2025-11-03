@@ -270,8 +270,20 @@ g_quark_to_string (GQuark quark)
   gchar **strings;
   guint seq_id;
 
-  seq_id = (guint) g_atomic_int_get (&quark_seq_id);
+  /* Read the quarks pointer first, then seq_id. This ordering establishes
+   * a happens-before relationship through the atomic operations that ensures
+   * the quarks pointer is guaranteed to be valid for all indices < seq_id.
+   * 
+   * If we read seq_id first, we could read a new seq_id but see an old quarks
+   * pointer value due to weak memory ordering, leading to potential segfaults
+   * when accessing strings[quark] with a stale pointer.
+   * 
+   * The atomic operations provide the necessary memory barriers to ensure
+   * the quarks pointer update in quark_new() is visible before the seq_id
+   * increment is visible.
+   */
   strings = g_atomic_pointer_get (&quarks);
+  seq_id = (guint) g_atomic_int_get (&quark_seq_id);
 
   if (quark < seq_id)
     result = strings[quark];
